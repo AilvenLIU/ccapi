@@ -47,6 +47,26 @@ class ExecutionManagementService : public Service {
 
   virtual ~ExecutionManagementService() {}
 
+  // decides whether a subscription should be routed to the websocket order entry connection (baseUrlWsOrderEntry) instead of the default baseUrlWs; overridable
+  // so exchanges can route additional fields (e.g. user-data streams that now live on the ws-api host) to that connection
+  virtual bool useWebsocketOrderEntryConnection(const std::set<std::string>& fieldSet) {
+    return fieldSet.find(CCAPI_EM_WEBSOCKET_ORDER_ENTRY) != fieldSet.end();
+  }
+
+  virtual bool shouldRegisterWebsocketConnectionOnOpen(const std::shared_ptr<WsConnection>& wsConnectionPtr) { return true; }
+
+  void registerWebsocketConnectionForRequests(const std::shared_ptr<WsConnection>& wsConnectionPtr) {
+    const auto& correlationId = wsConnectionPtr->subscriptionList.at(0).getCorrelationId();
+    this->wsConnectionPtrByCorrelationIdMap[correlationId] = wsConnectionPtr;
+  }
+
+  void unregisterWebsocketConnectionForRequests(const std::shared_ptr<WsConnection>& wsConnectionPtr) {
+    auto correlationIt = this->correlationIdByConnectionIdMap.find(wsConnectionPtr->id);
+    if (correlationIt != this->correlationIdByConnectionIdMap.end()) {
+      this->wsConnectionPtrByCorrelationIdMap.erase(correlationIt->second);
+    }
+  }
+
   // each subscription creates a unique websocket connection
   void subscribe(std::vector<Subscription>& subscriptionList) override {
     CCAPI_LOGGER_FUNCTION_ENTER;
@@ -63,7 +83,7 @@ class ExecutionManagementService : public Service {
           const auto& fieldSet = subscription.getFieldSet();
           const auto& proxyUrl = subscription.getProxyUrl();
 
-          if (fieldSet.find(CCAPI_EM_WEBSOCKET_ORDER_ENTRY) != fieldSet.end()) {
+          if (that->useWebsocketOrderEntryConnection(fieldSet)) {
             auto wsConnectionPtr = std::make_shared<WsConnection>(that->baseUrlWsOrderEntry, "", std::vector<Subscription>{subscription}, credential, proxyUrl);
             that->setWsConnectionStream(wsConnectionPtr);
             CCAPI_LOGGER_WARN("about to subscribe with new wsConnectionPtr " + toString(*wsConnectionPtr));
@@ -229,16 +249,23 @@ class ExecutionManagementService : public Service {
     Service::onOpen(wsConnectionPtr);
     auto now = UtilTime::now();
     auto correlationId = wsConnectionPtr->subscriptionList.at(0).getCorrelationId();
-    this->wsConnectionPtrByCorrelationIdMap.insert({correlationId, wsConnectionPtr});
-    this->correlationIdByConnectionIdMap.insert({wsConnectionPtr->id, correlationId});
+    this->correlationIdByConnectionIdMap[wsConnectionPtr->id] = correlationId;
+    if (this->shouldRegisterWebsocketConnectionOnOpen(wsConnectionPtr)) {
+      this->registerWebsocketConnectionForRequests(wsConnectionPtr);
+    }
     auto credential = wsConnectionPtr->credential;
-    this->logonToExchange(wsConnectionPtr, now, credential);
+    try {
+      this->logonToExchange(wsConnectionPtr, now, credential);
+    } catch (const std::exception& e) {
+      this->unregisterWebsocketConnectionForRequests(wsConnectionPtr);
+      this->onError(Event::Type::AUTHORIZATION_STATUS, Message::Type::AUTHORIZATION_FAILURE, e, {correlationId});
+    }
   }
 
   void onClose(std::shared_ptr<WsConnection> wsConnectionPtr, ErrorCode ec) override {
     CCAPI_LOGGER_FUNCTION_ENTER;
     if (this->correlationIdByConnectionIdMap.find(wsConnectionPtr->id) != this->correlationIdByConnectionIdMap.end()) {
-      this->wsConnectionPtrByCorrelationIdMap.erase(this->correlationIdByConnectionIdMap.at(wsConnectionPtr->id));
+      this->unregisterWebsocketConnectionForRequests(wsConnectionPtr);
       this->correlationIdByConnectionIdMap.erase(wsConnectionPtr->id);
     }
     this->wsRequestIdByConnectionIdMap.erase(wsConnectionPtr->id);
@@ -300,7 +327,7 @@ class ExecutionManagementService : public Service {
                         auto it = that->wsConnectionPtrByCorrelationIdMap.find(websocketOrderEntrySubscriptionCorrelationId);
                         if (it == that->wsConnectionPtrByCorrelationIdMap.end()) {
                           that->onError(Event::Type::REQUEST_STATUS, Message::Type::REQUEST_FAILURE, "Websocket connection was not found",
-                                        {websocketOrderEntrySubscriptionCorrelationId});
+                                        {request.getCorrelationId()});
                           return;
                         }
 
@@ -315,19 +342,32 @@ class ExecutionManagementService : public Service {
                         if (credential.empty()) {
                           credential = that->credentialDefault;
                         }
-                        rj::Document document(&that->jsonDocumentAllocator);
-                        that->convertRequestForWebsocket(document, that->jsonDocumentAllocator, wsConnectionPtr, request,
-                                                         ++that->wsRequestIdByConnectionIdMap[wsConnectionPtr->id], now, symbolId, credential);
-                        rj::StringBuffer stringBuffer;
-                        rj::Writer<rj::StringBuffer> writer(stringBuffer);
-                        document.Accept(writer);
-                        std::string sendString = stringBuffer.GetString();
-                        CCAPI_LOGGER_TRACE("sendString = " + sendString);
+                        auto wsRequestId = ++that->wsRequestIdByConnectionIdMap[wsConnectionPtr->id];
+                        auto releaseRequestCorrelation = [&that, &wsConnectionPtr, wsRequestId]() {
+                          auto connectionIt = that->requestCorrelationIdByWsRequestIdByConnectionIdMap.find(wsConnectionPtr->id);
+                          if (connectionIt != that->requestCorrelationIdByWsRequestIdByConnectionIdMap.end()) {
+                            connectionIt->second.erase(wsRequestId);
+                          }
+                        };
+                        try {
+                          rj::Document document(&that->jsonDocumentAllocator);
+                          that->convertRequestForWebsocket(document, that->jsonDocumentAllocator, wsConnectionPtr, request, wsRequestId, now, symbolId,
+                                                           credential);
+                          rj::StringBuffer stringBuffer;
+                          rj::Writer<rj::StringBuffer> writer(stringBuffer);
+                          document.Accept(writer);
+                          std::string sendString = stringBuffer.GetString();
+                          CCAPI_LOGGER_TRACE("sendString = " + sendString);
 
-                        that->send(wsConnectionPtr, sendString, ec);
+                          that->send(wsConnectionPtr, sendString, ec);
 
-                        if (ec) {
-                          that->onError(Event::Type::REQUEST_STATUS, Message::Type::REQUEST_FAILURE, ec, "request");
+                          if (ec) {
+                            releaseRequestCorrelation();
+                            that->onError(Event::Type::REQUEST_STATUS, Message::Type::REQUEST_FAILURE, ec, "request", {request.getCorrelationId()});
+                          }
+                        } catch (const std::exception& e) {
+                          releaseRequestCorrelation();
+                          that->onError(Event::Type::REQUEST_STATUS, Message::Type::REQUEST_FAILURE, e, {request.getCorrelationId()});
                         }
                       });
     CCAPI_LOGGER_FUNCTION_EXIT;

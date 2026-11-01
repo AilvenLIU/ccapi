@@ -88,9 +88,6 @@
 #ifdef CCAPI_ENABLE_EXCHANGE_BITGET_FUTURES
 #include "ccapi_cpp/service/ccapi_market_data_service_bitget_futures.h"
 #endif
-#ifdef CCAPI_ENABLE_EXCHANGE_BITGET_UTA
-#include "ccapi_cpp/service/ccapi_market_data_service_bitget_uta.h"
-#endif
 #ifdef CCAPI_ENABLE_EXCHANGE_BITMART
 #include "ccapi_cpp/service/ccapi_market_data_service_bitmart.h"
 #endif
@@ -102,9 +99,6 @@
 #endif
 #ifdef CCAPI_ENABLE_EXCHANGE_WHITEBIT
 #include "ccapi_cpp/service/ccapi_market_data_service_whitebit.h"
-#endif
-#ifdef CCAPI_ENABLE_EXCHANGE_HYPERLIQUID
-#include "ccapi_cpp/service/ccapi_market_data_service_hyperliquid.h"
 #endif
 #endif
 // end: enable exchanges for market data
@@ -198,9 +192,6 @@
 #ifdef CCAPI_ENABLE_EXCHANGE_BITGET_FUTURES
 #include "ccapi_cpp/service/ccapi_execution_management_service_bitget_futures.h"
 #endif
-#ifdef CCAPI_ENABLE_EXCHANGE_BITGET_UTA
-#include "ccapi_cpp/service/ccapi_execution_management_service_bitget_uta.h"
-#endif
 #ifdef CCAPI_ENABLE_EXCHANGE_BITMART
 #include "ccapi_cpp/service/ccapi_execution_management_service_bitmart.h"
 #endif
@@ -212,9 +203,6 @@
 // #endif
 #ifdef CCAPI_ENABLE_EXCHANGE_WHITEBIT
 #include "ccapi_cpp/service/ccapi_execution_management_service_whitebit.h"
-#endif
-#ifdef CCAPI_ENABLE_EXCHANGE_HYPERLIQUID
-#include "ccapi_cpp/service/ccapi_execution_management_service_hyperliquid.h"
 #endif
 #endif
 // end: enable exchanges for execution management
@@ -315,7 +303,6 @@ class Session {
       this->serviceContextPtr->start();
     }
     this->onEventFunc = std::bind(&Session::onEvent, this, std::placeholders::_1, std::placeholders::_2);
-
 #ifdef CCAPI_ENABLE_SERVICE_MARKET_DATA
 #ifdef CCAPI_ENABLE_EXCHANGE_COINBASE
     this->serviceByServiceNameExchangeMap[CCAPI_MARKET_DATA][CCAPI_EXCHANGE_NAME_COINBASE] =
@@ -429,10 +416,6 @@ class Session {
     this->serviceByServiceNameExchangeMap[CCAPI_MARKET_DATA][CCAPI_EXCHANGE_NAME_BITGET_FUTURES] =
         std::make_shared<MarketDataServiceBitgetFutures>(this->onEventFunc, sessionOptions, sessionConfigs, this->serviceContextPtr);
 #endif
-#ifdef CCAPI_ENABLE_EXCHANGE_BITGET_UTA
-    this->serviceByServiceNameExchangeMap[CCAPI_MARKET_DATA][CCAPI_EXCHANGE_NAME_BITGET_UTA] =
-        std::make_shared<MarketDataServiceBitgetUta>(this->onEventFunc, sessionOptions, sessionConfigs, this->serviceContextPtr);
-#endif
 #ifdef CCAPI_ENABLE_EXCHANGE_BITMART
     this->serviceByServiceNameExchangeMap[CCAPI_MARKET_DATA][CCAPI_EXCHANGE_NAME_BITMART] =
         std::make_shared<MarketDataServiceBitmart>(this->onEventFunc, sessionOptions, sessionConfigs, this->serviceContextPtr);
@@ -449,12 +432,7 @@ class Session {
     this->serviceByServiceNameExchangeMap[CCAPI_MARKET_DATA][CCAPI_EXCHANGE_NAME_WHITEBIT] =
         std::make_shared<MarketDataServiceWhitebit>(this->onEventFunc, sessionOptions, sessionConfigs, this->serviceContextPtr);
 #endif
-#ifdef CCAPI_ENABLE_EXCHANGE_HYPERLIQUID
-    this->serviceByServiceNameExchangeMap[CCAPI_MARKET_DATA][CCAPI_EXCHANGE_NAME_HYPERLIQUID] =
-        std::make_shared<MarketDataServiceHyperliquid>(this->onEventFunc, sessionOptions, sessionConfigs, this->serviceContextPtr);
 #endif
-#endif
-
 #ifdef CCAPI_ENABLE_SERVICE_EXECUTION_MANAGEMENT
 #ifdef CCAPI_ENABLE_EXCHANGE_COINBASE
     this->serviceByServiceNameExchangeMap[CCAPI_EXECUTION_MANAGEMENT][CCAPI_EXCHANGE_NAME_COINBASE] =
@@ -572,10 +550,6 @@ class Session {
     this->serviceByServiceNameExchangeMap[CCAPI_EXECUTION_MANAGEMENT][CCAPI_EXCHANGE_NAME_BITGET_FUTURES] =
         std::make_shared<ExecutionManagementServiceBitgetFutures>(this->onEventFunc, sessionOptions, sessionConfigs, this->serviceContextPtr);
 #endif
-#ifdef CCAPI_ENABLE_EXCHANGE_BITGET_UTA
-    this->serviceByServiceNameExchangeMap[CCAPI_EXECUTION_MANAGEMENT][CCAPI_EXCHANGE_NAME_BITGET_UTA] =
-        std::make_shared<ExecutionManagementServiceBitgetUta>(this->onEventFunc, sessionOptions, sessionConfigs, this->serviceContextPtr);
-#endif
 #ifdef CCAPI_ENABLE_EXCHANGE_BITMART
     this->serviceByServiceNameExchangeMap[CCAPI_EXECUTION_MANAGEMENT][CCAPI_EXCHANGE_NAME_BITMART] =
         std::make_shared<ExecutionManagementServiceBitmart>(this->onEventFunc, sessionOptions, sessionConfigs, this->serviceContextPtr);
@@ -592,10 +566,6 @@ class Session {
 //     this->serviceByServiceNameExchangeMap[CCAPI_EXECUTION_MANAGEMENT][CCAPI_EXCHANGE_NAME_WHITEBIT] =
 //         std::make_shared<ExecutionManagementServiceWhitebit>(this->onEventFunc, sessionOptions, sessionConfigs, this->serviceContextPtr);
 // #endif
-#ifdef CCAPI_ENABLE_EXCHANGE_HYPERLIQUID
-    this->serviceByServiceNameExchangeMap[CCAPI_EXECUTION_MANAGEMENT][CCAPI_EXCHANGE_NAME_HYPERLIQUID] =
-        std::make_shared<ExecutionManagementServiceHyperliquid>(this->onEventFunc, sessionOptions, sessionConfigs, this->serviceContextPtr);
-#endif
 #endif
 
 #ifdef CCAPI_ENABLE_SERVICE_FIX

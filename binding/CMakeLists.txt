@@ -231,7 +231,6 @@ add_compile_definitions(CCAPI_ENABLE_EXCHANGE_ASCENDEX)
 
 add_compile_definitions(CCAPI_ENABLE_EXCHANGE_BITGET)
 add_compile_definitions(CCAPI_ENABLE_EXCHANGE_BITGET_FUTURES)
-add_compile_definitions(CCAPI_ENABLE_EXCHANGE_BITGET_UTA)
 
 add_compile_definitions(CCAPI_ENABLE_EXCHANGE_BITMART)
 

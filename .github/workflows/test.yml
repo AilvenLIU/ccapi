@@ -14,6 +14,10 @@ on:
       - '**/README.md'
       - '**.example'
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 env:
   CMAKE_VERSION: 3.17.5
   NINJA_VERSION: 1.9.0
@@ -53,7 +57,7 @@ jobs:
       #   }
 
     steps:
-    - uses: actions/checkout@v7
+    - uses: actions/checkout@v6
 
     - name: Download Ninja and CMake
       id: cmake_and_ninja
@@ -128,12 +132,6 @@ jobs:
           execute_process(
             COMMAND brew reinstall openssl@3
           )
-          # ccapi is not yet compatible with OpenSSL 4 (EVP_PKEY_asn1_find_str was removed),
-          # so make sure it can't be picked up from the default Homebrew prefix.
-          # Not checking the result: this returns non-zero if openssl@4 isn't installed.
-          execute_process(
-            COMMAND brew unlink openssl@4
-          )
         elseif ("${{ runner.os }}" STREQUAL "Windows")
           execute_process(
             COMMAND vcpkg install openssl:x64-windows
@@ -176,7 +174,7 @@ jobs:
         set(ENV{CC} ${{ matrix.config.cc }})
         set(ENV{CXX} ${{ matrix.config.cxx }})
         if ("${{ runner.os }}" STREQUAL "macOS")
-          set(ENV{OPENSSL_ROOT_DIR} "/opt/homebrew/opt/openssl@3")
+          set(ENV{OPENSSL_ROOT_DIR} "/usr/local/Cellar/openssl")
         elseif ("${{ runner.os }}" STREQUAL "Windows")
           set(ENV{OPENSSL_ROOT_DIR} "C:/vcpkg/installed/x64-windows-static")
           # set(ENV{CMAKE_TOOLCHAIN_FILE} "C:/vcpkg/scripts/buildsystems/vcpkg.cmake")
@@ -213,7 +211,6 @@ jobs:
         execute_process(
           COMMAND ${{ steps.cmake_and_ninja.outputs.cmake_dir }}/cmake
             -DCMAKE_OSX_ARCHITECTURES=arm64
-            -DOPENSSL_ROOT_DIR=$ENV{OPENSSL_ROOT_DIR}
             -DBUILD_TEST_BUILD=OFF
             -DBUILD_TEST_UNIT=OFF
             -S test
@@ -232,7 +229,6 @@ jobs:
         execute_process(
           COMMAND ${{ steps.cmake_and_ninja.outputs.cmake_dir }}/cmake
             -DCMAKE_OSX_ARCHITECTURES=arm64
-            -DOPENSSL_ROOT_DIR=$ENV{OPENSSL_ROOT_DIR}
             -S example
             -B example/build
             -DCMAKE_BUILD_TYPE=$ENV{CMAKE_BUILD_TYPE}
@@ -250,7 +246,6 @@ jobs:
           execute_process(
             COMMAND ${{ steps.cmake_and_ninja.outputs.cmake_dir }}/cmake
               -DCMAKE_OSX_ARCHITECTURES=arm64
-              -DOPENSSL_ROOT_DIR=$ENV{OPENSSL_ROOT_DIR}
               -DBUILD_PYTHON=ON
               # -DBUILD_JAVA=ON
               # -DBUILD_CSHARP=ON
@@ -346,7 +341,7 @@ jobs:
         set(ENV{CC} ${{ matrix.config.cc }})
         set(ENV{CXX} ${{ matrix.config.cxx }})
         if ("${{ runner.os }}" STREQUAL "macOS")
-          set(ENV{OPENSSL_ROOT_DIR} "/opt/homebrew/opt/openssl@3")
+          set(ENV{OPENSSL_ROOT_DIR} "/usr/local/Cellar/openssl")
         elseif ("${{ runner.os }}" STREQUAL "Windows")
           set(ENV{OPENSSL_ROOT_DIR} "C:/vcpkg/installed/x64-windows-static")
           # set(ENV{CMAKE_TOOLCHAIN_FILE} "C:/vcpkg/scripts/buildsystems/vcpkg.cmake")
@@ -383,7 +378,6 @@ jobs:
         execute_process(
           COMMAND ${{ steps.cmake_and_ninja.outputs.cmake_dir }}/cmake
             -DCMAKE_OSX_ARCHITECTURES=arm64
-            -DOPENSSL_ROOT_DIR=$ENV{OPENSSL_ROOT_DIR}
             -DBUILD_TEST_BUILD=ON
             -DBUILD_TEST_UNIT=ON
             -S test
